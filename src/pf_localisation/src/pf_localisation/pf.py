@@ -45,6 +45,7 @@ class PFLocaliser(PFLocaliserBase):
         """
 
         self.particlecloud = PoseArray()
+        self.particlecloud.header.frame_id = "map"
         #poses = [Pose() for i in range(self.poseArraySize)]
         #for pose in poses:
         #    pose.orientation = Quaternion
