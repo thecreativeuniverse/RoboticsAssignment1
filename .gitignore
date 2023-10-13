@@ -2,5 +2,4 @@
 /devel/
 __pycache__/*
 *.pyc
-
-*.so
+src/pf_localisation/src/pf_localisation/laser_trace.so
