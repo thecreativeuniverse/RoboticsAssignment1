@@ -1,11 +1,9 @@
-from geometry_msgs.msg import Pose, PoseArray, Quaternion
+from geometry_msgs.msg import Pose, PoseArray, Quaternion, Point
 from . pf_base import PFLocaliserBase
 import math
 import rospy
-
 from . util import rotateQuaternion, getHeading
 from random import random
-
 from time import time
 
 
@@ -14,13 +12,23 @@ class PFLocaliser(PFLocaliserBase):
     def __init__(self):
         # ----- Call the superclass constructor
         super(PFLocaliser, self).__init__()
-        
+        print(PFLocaliser)
         # ----- Set motion model parameters
  
         # ----- Sensor model parameters
         self.NUMBER_PREDICTED_READINGS = 20     # Number of readings to predict
-        
-       
+
+        # Set motion model parameters
+        self.ODOM_ROTATION_NOISE = 0  # Odometry model rotation noise
+        self.ODOM_TRANSLATION_NOISE = 0  # Odometry model x axis (forward) noise
+        self.ODOM_DRIFT_NOISE = 0  # Odometry model y axis (side-to-side) noise
+
+
+        self.poseArraySize = 100
+        self.pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10)
+
+
+
     def initialise_particle_cloud(self, initialpose):
         """
         Set particle cloud to initialpose plus noise
@@ -35,7 +43,16 @@ class PFLocaliser(PFLocaliserBase):
         :Return:
             | (geometry_msgs.msg.PoseArray) poses of the particles
         """
-        pass
+
+        self.particlecloud = PoseArray()
+        #poses = [Pose() for i in range(self.poseArraySize)]
+        #for pose in poses:
+        #    pose.orientation = Quaternion
+        initialised_poses = [Pose(orientation=Quaternion(random(),random(),random(),random()),position=Point(random()*10,random()*10,0)) for i in range(self.poseArraySize)]
+        self.particlecloud.poses = initialised_poses
+        print(self.particlecloud.poses[69])
+        self.pub.publish(self.particlecloud)
+        return self.particlecloud
 
  
     
