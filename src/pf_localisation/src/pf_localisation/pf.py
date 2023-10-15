@@ -24,13 +24,14 @@ class PFLocaliser(PFLocaliserBase):
         self.ODOM_DRIFT_NOISE = 0  # Odometry model y axis (side-to-side) noise
 
         self.poseArraySize = 100
-        self.pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10)
+        self.pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10, latch=True)
 
         initial_pose = PoseWithCovarianceStamped()
         initial_pose.pose.pose = Pose(orientation=Quaternion(0, 0, 0, 0), position=Point(0, 0, 0))
         self.init_pose = initial_pose
 
         self.init_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=10, latch=True)
+        self.init_pose_pub.publish(self.estimatedpose)
 
     def initialise_particle_cloud(self, initialpose):
         """
@@ -53,11 +54,10 @@ class PFLocaliser(PFLocaliserBase):
         # for pose in poses:
         #    pose.orientation = Quaternion
         initialised_poses = [Pose(orientation=Quaternion(random(), random(), random(), random()),
-                                  position=Point(random() * 10, random() * 10, 0)) for i in range(self.poseArraySize)]
+                                  position=Point(random() * 100, random() * 100, 0)) for i in range(self.poseArraySize)]
         self.particlecloud.poses = initialised_poses
         self.pub.publish(self.particlecloud)
 
-        self.init_pose_pub.publish(self.estimatedpose)
 
         print("====INITIAL POSE====")
         print(initialpose)
@@ -78,6 +78,7 @@ class PFLocaliser(PFLocaliserBase):
         s = []
         # Getting the weights aka line 4
         weights = [self.sensor_model.get_weight(scan, particle) for particle in self.particlecloud.poses]
+        print(weights)
 
         # Initialising the cumulative weights array
         cum_weights = np.zeros(len(weights))
@@ -123,7 +124,7 @@ class PFLocaliser(PFLocaliserBase):
         orientation = 0
 
         print("==================ESTIMATE POSE=================")
-        for i in self.particlecloud.poses:
-            location += self.particlecloud.poses[i]
+        #for i in self.particlecloud.poses:
+         #   location += self.particlecloud.poses[i]
 
         return Pose() #TODO
