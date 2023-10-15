@@ -1,34 +1,36 @@
+import numpy as np
 from geometry_msgs.msg import Pose, PoseArray, Quaternion, Point, PoseWithCovarianceStamped
-from . pf_base import PFLocaliserBase
+from .pf_base import PFLocaliserBase
 import math
 import rospy
-from . util import rotateQuaternion, getHeading
+from .util import rotateQuaternion, getHeading
 from random import random
 from time import time
 
 
 class PFLocaliser(PFLocaliserBase):
-       
+
     def __init__(self):
         # ----- Call the superclass constructor
         super(PFLocaliser, self).__init__()
-        # ----- Set motion model parameters
- 
+        print(PFLocaliser)
+
         # ----- Sensor model parameters
-        self.NUMBER_PREDICTED_READINGS = 20     # Number of readings to predict
+        self.NUMBER_PREDICTED_READINGS = 20  # Number of readings to predict
 
         # Set motion model parameters
         self.ODOM_ROTATION_NOISE = 0  # Odometry model rotation noise
         self.ODOM_TRANSLATION_NOISE = 0  # Odometry model x axis (forward) noise
         self.ODOM_DRIFT_NOISE = 0  # Odometry model y axis (side-to-side) noise
 
-
         self.poseArraySize = 100
         self.pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10)
 
         initial_pose = PoseWithCovarianceStamped()
-        initial_pose.pose.pose = Pose(orientation=Quaternion(0,0,0,0), position=Point(0,0,0))
+        initial_pose.pose.pose = Pose(orientation=Quaternion(0, 0, 0, 0), position=Point(0, 0, 0))
         self.init_pose = initial_pose
+
+        self.init_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=10, latch=True)
 
     def initialise_particle_cloud(self, initialpose):
         """
@@ -47,19 +49,21 @@ class PFLocaliser(PFLocaliserBase):
 
         self.particlecloud = PoseArray()
         self.particlecloud.header.frame_id = "map"
-        #poses = [Pose() for i in range(self.poseArraySize)]
-        #for pose in poses:
+        # poses = [Pose() for i in range(self.poseArraySize)]
+        # for pose in poses:
         #    pose.orientation = Quaternion
-        initialised_poses = [Pose(orientation=Quaternion(random(),random(),random(),random()),position=Point(random()*10,random()*10,0)) for i in range(self.poseArraySize)]
+        initialised_poses = [Pose(orientation=Quaternion(random(), random(), random(), random()),
+                                  position=Point(random() * 10, random() * 10, 0)) for i in range(self.poseArraySize)]
         self.particlecloud.poses = initialised_poses
         self.pub.publish(self.particlecloud)
-        
-        self.init_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=10, latch=True)
+
         self.init_pose_pub.publish(self.estimatedpose)
+
+        print("====INITIAL POSE====")
+        print(initialpose)
+
         return self.particlecloud
 
- 
-    
     def update_particle_cloud(self, scan):
         """
         This should use the supplied laser scan to update the current
@@ -69,30 +73,35 @@ class PFLocaliser(PFLocaliserBase):
             | scan (sensor_msgs.msg.LaserScan): laser scan to use for update
 
          """
-         
-         #weights = [self.sensor_model.getweight(scan, particle) for particle in self.particlecloud.poses]
-         
-         #S = EMPTY LIST
-         #cum_weights = np.zeros(len(weights))
-         #cum_weights[0] = weights[0]
-         #for i in range(2, self.particlecloud.poses):
-         #	cum_weights[i] = cum_weights[i-1] + weights[i]
-         #u = LINE 4 OF ALGORITHM
-         
-         #MInv = self.particlecloud ** -1
-         
-         #i = 1
-         #for j in range (self.particlecloud.poses):
-         #	while u > i
-         #		i = i + 1
-         #	S = S.concat[x])
-         #	u = u + MInv
-         
-         #return S
-         	
-         
-         #Add in number of particles at random locations at some point to factor in kidnapped robot problem
-        pass
+        print("====UPDATE PARTICLE CLOUD====")
+        # Initialise the post position set
+        s = []
+        # Getting the weights aka line 4
+        weights = [self.sensor_model.getweight(scan, particle) for particle in self.particlecloud.poses]
+
+        # Initialising the cumulative weights array
+        cum_weights = np.zeros(len(weights))
+        cum_weights[0] = weights[0]
+
+        # Generate CDF (line 2)
+        for i in range(2, self.poseArraySize):
+            cum_weights[i] = cum_weights[i - 1] + weights[i]
+
+        # M is a number of particles
+        m_inv = self.poseArraySize ** -1
+        # u is the initial threshold
+        u = random() * m_inv
+
+        i = 1
+        for j in range(self.poseArraySize):
+            while u > i:
+                i = i + 1
+            s = s + [self.particlecloud.poses[i]]
+            u = u + m_inv
+
+        return s
+
+        # TODO Add in number of particles at random locations at some point to factor in kidnapped robot problem
 
     def estimate_pose(self):
         """
@@ -110,4 +119,12 @@ class PFLocaliser(PFLocaliserBase):
         :Return:
             | (geometry_msgs.msg.Pose) robot's estimated pose.
          """
+
+        location = 0
+        orientation = 0
+
+        print("==================ESTIMATE POSE=================")
+        for i in self.particlecloud.poses:
+            location += self.particlecloud.poses[i]
+
         pass
