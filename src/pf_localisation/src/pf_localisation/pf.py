@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from geometry_msgs.msg import Pose, PoseArray, Quaternion, Point, PoseWithCovarianceStamped
 from . pf_base import PFLocaliserBase
 import math
