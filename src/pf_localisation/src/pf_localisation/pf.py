@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from geometry_msgs.msg import Pose, PoseArray, Quaternion, Point, PoseWithCovarianceStamped
 from . pf_base import PFLocaliserBase
 import math
@@ -12,7 +13,6 @@ class PFLocaliser(PFLocaliserBase):
     def __init__(self):
         # ----- Call the superclass constructor
         super(PFLocaliser, self).__init__()
-        print(PFLocaliser)
         # ----- Set motion model parameters
  
         # ----- Sensor model parameters
@@ -70,7 +70,36 @@ class PFLocaliser(PFLocaliserBase):
             | scan (sensor_msgs.msg.LaserScan): laser scan to use for update
 
          """
+<<<<<<< HEAD
        	
+=======
+         
+         #weights = [self.sensor_model.getweight(scan, particle) for particle in self.particlecloud.poses]
+         
+         #S = EMPTY LIST
+         #cum_weights = np.zeros(len(weights))
+         #cum_weights[0] = weights[0]
+         #for i in range(2, self.particlecloud.poses):
+         #	cum_weights[i] = cum_weights[i-1] + weights[i]
+         #u = LINE 4 OF ALGORITHM
+         
+         #MInv = self.particlecloud ** -1
+         
+         #i = 1
+         #for j in range (self.particlecloud.poses):
+         #	while u > i
+         #		i = i + 1
+         #	S = S.concat[x])
+         #	u = u + MInv
+         
+         #return S
+         	
+         
+         #Add in number of particles at random locations at some point to factor in kidnapped robot problem
+         
+         	
+         
+>>>>>>> 8ddfa127221280f7a04864bff571f41bb2f1a8d4
         pass
 
     def estimate_pose(self):
