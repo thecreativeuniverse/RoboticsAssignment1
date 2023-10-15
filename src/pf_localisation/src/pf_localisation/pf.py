@@ -23,7 +23,7 @@ class PFLocaliser(PFLocaliserBase):
         self.ODOM_TRANSLATION_NOISE = 0  # Odometry model x axis (forward) noise
         self.ODOM_DRIFT_NOISE = 0  # Odometry model y axis (side-to-side) noise
 
-        self.poseArraySize = 100
+        self.poseArraySize = 20
         self.pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10, latch=True)
 
         initial_pose = PoseWithCovarianceStamped()
@@ -54,7 +54,7 @@ class PFLocaliser(PFLocaliserBase):
         # for pose in poses:
         #    pose.orientation = Quaternion
         initialised_poses = [Pose(orientation=Quaternion(random(), random(), random(), random()),
-                                  position=Point(random() * 100, random() * 100, 0)) for i in range(self.poseArraySize)]
+                                  position=Point(random() * 30, random() * 30, 0)) for i in range(self.poseArraySize)]
         self.particlecloud.poses = initialised_poses
         self.pub.publish(self.particlecloud)
 
@@ -120,11 +120,34 @@ class PFLocaliser(PFLocaliserBase):
         :Return:
             | (geometry_msgs.msg.Pose) robot's estimated pose.
          """
-        location = 0
-        orientation = 0
+        position_x = 0
+        position_y = 0
+        position_z = 0
+
+        orientation_x = 0
+        orientation_y = 0
+        orientation_z = 0
+        orientation_w = 0
 
         print("==================ESTIMATE POSE=================")
-        #for i in self.particlecloud.poses:
-         #   location += self.particlecloud.poses[i]
+        for particle in self.particlecloud.poses:
+            position_x += particle.position.x
+            position_y += particle.position.y
+            position_z += particle.position.z
 
-        return Pose() #TODO
+            orientation_x += particle.orientation.x
+            orientation_y += particle.orientation.y
+            orientation_z += particle.orientation.z
+            orientation_w += particle.orientation.w
+
+        length = len(self.particlecloud.poses)
+        avg_pos_x = position_x / length
+        avg_pos_y = position_y / length
+        avg_pos_z = position_z / length
+
+        avg_or_x = orientation_x / length
+        avg_or_y = orientation_y / length
+        avg_or_z = orientation_z / length
+        avg_or_w = orientation_w / length
+
+        return Pose(orientation=Quaternion(avg_or_x, avg_or_y, avg_or_z, avg_or_w), position=Point(avg_pos_x, avg_pos_y, avg_pos_z))
