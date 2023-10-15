@@ -70,9 +70,6 @@ class PFLocaliser(PFLocaliserBase):
             | scan (sensor_msgs.msg.LaserScan): laser scan to use for update
 
          """
-<<<<<<< HEAD
-       	
-=======
          
          #weights = [self.sensor_model.getweight(scan, particle) for particle in self.particlecloud.poses]
          
@@ -96,10 +93,6 @@ class PFLocaliser(PFLocaliserBase):
          	
          
          #Add in number of particles at random locations at some point to factor in kidnapped robot problem
-         
-         	
-         
->>>>>>> 8ddfa127221280f7a04864bff571f41bb2f1a8d4
         pass
 
     def estimate_pose(self):
