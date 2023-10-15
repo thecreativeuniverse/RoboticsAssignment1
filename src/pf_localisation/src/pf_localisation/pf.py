@@ -74,10 +74,19 @@ class PFLocaliser(PFLocaliserBase):
          #cum_weights[0] = weights[0]
          #for i in range(2, self.particlecloud.poses):
          #	cum_weights[i] = cum_weights[i-1] + weights[i]
-         # LINE 4 OF ALGORITHM
+         #u = LINE 4 OF ALGORITHM
          
+         #MInv = self.particlecloud ** -1
+         
+         #i = 1
+         #for j in range (self.particlecloud.poses):
+         #	while u > i
+         #		i = i + 1
+         #	S = S.concat[x])
+         #	u = u + MInv
+         
+         #return S
          	
-         
          
          #Add in number of particles at random locations at some point to factor in kidnapped robot problem
          
