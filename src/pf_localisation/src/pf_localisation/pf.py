@@ -1,4 +1,4 @@
-from geometry_msgs.msg import Pose, PoseArray, Quaternion, Point
+from geometry_msgs.msg import Pose, PoseArray, Quaternion, Point, PoseWithCovarianceStamped
 from . pf_base import PFLocaliserBase
 import math
 import rospy
@@ -27,7 +27,9 @@ class PFLocaliser(PFLocaliserBase):
         self.poseArraySize = 100
         self.pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10)
 
-
+        initial_pose = PoseWithCovarianceStamped()
+        initial_pose.pose.pose = Pose(orientation=Quaternion(0,0,0,0), position=Point(0,0,0))
+        self.init_pose = initial_pose
 
     def initialise_particle_cloud(self, initialpose):
         """
@@ -51,8 +53,10 @@ class PFLocaliser(PFLocaliserBase):
         #    pose.orientation = Quaternion
         initialised_poses = [Pose(orientation=Quaternion(random(),random(),random(),random()),position=Point(random()*10,random()*10,0)) for i in range(self.poseArraySize)]
         self.particlecloud.poses = initialised_poses
-        print(self.particlecloud.poses[69])
         self.pub.publish(self.particlecloud)
+        
+        self.init_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=10, latch=True)
+        self.init_pose_pub.publish(self.estimated_pose)
         return self.particlecloud
 
  
@@ -66,6 +70,7 @@ class PFLocaliser(PFLocaliserBase):
             | scan (sensor_msgs.msg.LaserScan): laser scan to use for update
 
          """
+       	
         pass
 
     def estimate_pose(self):
