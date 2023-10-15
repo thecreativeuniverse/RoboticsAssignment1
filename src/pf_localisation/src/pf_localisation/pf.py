@@ -55,7 +55,7 @@ class PFLocaliser(PFLocaliserBase):
         self.pub.publish(self.particlecloud)
         
         self.init_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=10, latch=True)
-        self.init_pose_pub.publish(self.estimated_pose)
+        self.init_pose_pub.publish(self.estimatedpose)
         return self.particlecloud
 
  
