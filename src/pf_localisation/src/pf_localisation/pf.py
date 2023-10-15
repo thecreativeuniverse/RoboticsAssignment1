@@ -1,4 +1,4 @@
-from geometry_msgs.msg import Pose, PoseArray, Quaternion, Point
+		from geometry_msgs.msg import Pose, PoseArray, Quaternion, Point
 from . pf_base import PFLocaliserBase
 import math
 import rospy
@@ -66,6 +66,23 @@ class PFLocaliser(PFLocaliserBase):
             | scan (sensor_msgs.msg.LaserScan): laser scan to use for update
 
          """
+         
+         #weights = [self.sensor_model.getweight(scan, particle) for particle in self.particlecloud.poses]
+         
+         #S = EMPTY LIST
+         #cum_weights = np.zeros(len(weights))
+         #cum_weights[0] = weights[0]
+         #for i in range(2, self.particlecloud.poses):
+         #	cum_weights[i] = cum_weights[i-1] + weights[i]
+         # LINE 4 OF ALGORITHM
+         
+         	
+         
+         
+         #Add in number of particles at random locations at some point to factor in kidnapped robot problem
+         
+         	
+         
         pass
 
     def estimate_pose(self):
