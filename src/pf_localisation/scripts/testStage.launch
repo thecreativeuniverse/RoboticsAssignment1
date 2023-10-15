@@ -1,0 +1,9 @@
+<launch>
+    <param name="/use_sim_time" value="true"/>
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find pf_localisation)/Rass1.rviz"/>
+    <node name="stage" pkg="stage_ros" type="stageros" args="--clock $(find pf_localisation)/data/sim_data/meeting.world"/>
+    
+    <arg name="map_file" default="$(find pf_localisation)/data/sim_data/meeting.yaml"/>
+    <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)" />
+    
+</launch>
