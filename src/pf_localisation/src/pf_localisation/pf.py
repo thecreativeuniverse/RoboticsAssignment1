@@ -53,8 +53,11 @@ class PFLocaliser(PFLocaliserBase):
         # poses = [Pose() for i in range(self.poseArraySize)]
         # for pose in poses:
         #    pose.orientation = Quaternion
+        # map_range = self.sensor_model.calc_map_range(self.estimatedpose.pose.pose.position.x, self.estimatedpose.pose.pose.position.y,
+        #                              getHeading(self.estimatedpose.pose.pose.orientation))
+        map_range = 30
         initialised_poses = [Pose(orientation=Quaternion(0, 0, (random()*2)-1, (random()*2)-1),
-                                  position=Point(random() * 30, random() * 30, 0)) for i in range(self.poseArraySize)]
+                                  position=Point((random() * map_range), (random() * map_range), 0)) for i in range(self.poseArraySize)]
         self.particlecloud.poses = initialised_poses
         self.pub.publish(self.particlecloud)
 
@@ -77,7 +80,11 @@ class PFLocaliser(PFLocaliserBase):
         # Initialise the post position set
         s = []
         # Getting the weights aka line 4
-        weights = [self.sensor_model.get_weight(scan, particle) for particle in self.particlecloud.poses]
+        weights =[]
+        for particle in self.particlecloud.poses:
+            print(particle)
+            weights.append(self.sensor_model.get_weight(scan, particle))
+
         print(weights)
 
         # Initialising the cumulative weights array
@@ -85,22 +92,31 @@ class PFLocaliser(PFLocaliserBase):
         cum_weights[0] = weights[0]
 
         # Generate CDF (line 2)
-        for i in range(2, self.poseArraySize):
+        for i in range(1, len(weights)):
             cum_weights[i] = cum_weights[i - 1] + weights[i]
 
+        for i in range(len(cum_weights)):
+            cum_weights[i] = cum_weights[i]/cum_weights[-1]
         # M is a number of particles
         m_inv = self.poseArraySize ** -1
         # u is the initial threshold
-        u = random() * m_inv
+        u = 0#random() * m_inv
+        print(f"initial threshold {u}")
 
         i = 1
+        print("cum weights:")
+        print(cum_weights)
         for j in range(self.poseArraySize):
-            while u > i:
+            while u > cum_weights[i]:
+                print("skipping weight",cum_weights[i],"bcos its smaller than",u)
                 i = i + 1
             s = s + [self.particlecloud.poses[i]]
             u = u + m_inv
 
-        return s
+        print("==================CURRENT PARTICLE CLOUD==========")
+        print(len(s))
+        self.particlecloud.poses = s
+        #return s
 
         # TODO Add in number of particles at random locations at some point to factor in kidnapped robot problem
 
