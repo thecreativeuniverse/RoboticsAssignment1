@@ -23,7 +23,7 @@ class PFLocaliser(PFLocaliserBase):
         self.ODOM_TRANSLATION_NOISE = 0  # Odometry model x axis (forward) noise
         self.ODOM_DRIFT_NOISE = 0  # Odometry model y axis (side-to-side) noise
 
-        self.poseArraySize = 20
+        self.poseArraySize = 200
         self.pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10, latch=True)
 
         initial_pose = PoseWithCovarianceStamped()
@@ -53,7 +53,7 @@ class PFLocaliser(PFLocaliserBase):
         # poses = [Pose() for i in range(self.poseArraySize)]
         # for pose in poses:
         #    pose.orientation = Quaternion
-        initialised_poses = [Pose(orientation=Quaternion(random(), random(), random(), random()),
+        initialised_poses = [Pose(orientation=Quaternion(0, 0, (random()*2)-1, (random()*2)-1),
                                   position=Point(random() * 30, random() * 30, 0)) for i in range(self.poseArraySize)]
         self.particlecloud.poses = initialised_poses
         self.pub.publish(self.particlecloud)
