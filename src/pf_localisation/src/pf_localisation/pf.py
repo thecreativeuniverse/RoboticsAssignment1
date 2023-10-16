@@ -4,7 +4,8 @@ from .pf_base import PFLocaliserBase
 import math
 import rospy
 from .util import rotateQuaternion, getHeading
-from random import random
+from random import random, randint
+import random as rn
 from time import time
 
 
@@ -13,15 +14,14 @@ class PFLocaliser(PFLocaliserBase):
     def __init__(self):
         # ----- Call the superclass constructor
         super(PFLocaliser, self).__init__()
-        print(PFLocaliser)
 
         # ----- Sensor model parameters
         self.NUMBER_PREDICTED_READINGS = 20  # Number of readings to predict
 
         # Set motion model parameters
-        self.ODOM_ROTATION_NOISE = 0  # Odometry model rotation noise
-        self.ODOM_TRANSLATION_NOISE = 0  # Odometry model x axis (forward) noise
-        self.ODOM_DRIFT_NOISE = 0  # Odometry model y axis (side-to-side) noise
+        self.ODOM_ROTATION_NOISE = 0.5  # Odometry model rotation noise
+        self.ODOM_TRANSLATION_NOISE = 0.5  # Odometry model x axis (forward) noise
+        self.ODOM_DRIFT_NOISE = 0.5  # Odometry model y axis (side-to-side) noise
 
         self.poseArraySize = 200
         self.pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10, latch=True)
@@ -62,8 +62,6 @@ class PFLocaliser(PFLocaliserBase):
         self.pub.publish(self.particlecloud)
 
 
-        print("====INITIAL POSE====")
-        print(initialpose)
 
         return self.particlecloud
 
@@ -76,46 +74,60 @@ class PFLocaliser(PFLocaliserBase):
             | scan (sensor_msgs.msg.LaserScan): laser scan to use for update
 
          """
-        print("====UPDATE PARTICLE CLOUD====")
         # Initialise the post position set
         s = []
         # Getting the weights aka line 4
         weights =[]
         for particle in self.particlecloud.poses:
-            print(particle)
-            weights.append(self.sensor_model.get_weight(scan, particle))
+            weight = self.sensor_model.get_weight(scan, particle)
+            print(f"paritcle pos={particle.position.x} {particle.position.y}\tparticleweight={weight}")
+            weights.append(weight)
 
         print(weights)
+        print("=" * 100)
+
+        summed_weights = sum(weights)
+        weights = [weight / summed_weights for weight in weights]
+        cum_weights = [weights[0]]
+        for i in range(1,len(weights)):
+            cum_weights.append(cum_weights[-1] + weights[i])
 
         # Initialising the cumulative weights array
-        cum_weights = np.zeros(len(weights))
-        cum_weights[0] = weights[0]
 
         # Generate CDF (line 2)
-        for i in range(1, len(weights)):
-            cum_weights[i] = cum_weights[i - 1] + weights[i]
+        # for i in range(len(weights)):
+        #     cum_weight = cum_weights[i-1] + weights[i]
+        #     cum_weights.append(cum_weight)
 
-        for i in range(len(cum_weights)):
-            cum_weights[i] = cum_weights[i]/cum_weights[-1]
+        # for i in range(len(cum_weights)):
+        #     cum_weights.append(cum_weights[i]/cum_weights[-1])
         # M is a number of particles
         m_inv = self.poseArraySize ** -1
         # u is the initial threshold
-        u = 0#random() * m_inv
-        print(f"initial threshold {u}")
+        u = random() * m_inv
+
+        print("CUM WEIGHTS")
+        print(cum_weights)
 
         i = 1
-        print("cum weights:")
-        print(cum_weights)
-        for j in range(self.poseArraySize):
-            while u > cum_weights[i]:
-                print("skipping weight",cum_weights[i],"bcos its smaller than",u)
-                i = i + 1
-            s = s + [self.particlecloud.poses[i]]
-            u = u + m_inv
 
-        print("==================CURRENT PARTICLE CLOUD==========")
-        print(len(s))
+        map_range = 30
+        for j in range(self.poseArraySize):
+            if u <= cum_weights[j]: # doesn't like this particle. make a new one based on last accepted no
+                s += [self.particlecloud.poses[j]]
+            u += m_inv
+        while len(s) < self.poseArraySize:
+            new_pose = Pose(orientation=Quaternion(0, 0, (random()*2)-1, (random()*2)-1))
+            new_pose.position = s[randint(0, len(s) - 1)].position
+            new_pose.position.x += (random() * self.ODOM_TRANSLATION_NOISE) - self.ODOM_TRANSLATION_NOISE / 2
+            new_pose.position.y += (random() * self.ODOM_TRANSLATION_NOISE) - self.ODOM_TRANSLATION_NOISE / 2
+            new_pose.orientation.z += (random() * self.ODOM_ROTATION_NOISE) - self.ODOM_ROTATION_NOISE / 2
+            new_pose.orientation.w += (random() * self.ODOM_ROTATION_NOISE) - self.ODOM_ROTATION_NOISE / 2
+            s += [new_pose]
+
+
         self.particlecloud.poses = s
+
         #return s
 
         # TODO Add in number of particles at random locations at some point to factor in kidnapped robot problem
@@ -123,7 +135,7 @@ class PFLocaliser(PFLocaliserBase):
     def estimate_pose(self):
         """
         This should calculate and return an updated robot pose estimate based
-        on the particle cloud (self.particlecloud).
+        on the particle cloud (self.particlecloud).Pose()
         
         Create new estimated pose, given particle cloud
         E.g. just average the location and orientation values of each of
@@ -145,7 +157,6 @@ class PFLocaliser(PFLocaliserBase):
         orientation_z = 0
         orientation_w = 0
 
-        print("==================ESTIMATE POSE=================")
         for particle in self.particlecloud.poses:
             position_x += particle.position.x
             position_y += particle.position.y
@@ -159,10 +170,10 @@ class PFLocaliser(PFLocaliserBase):
         length = len(self.particlecloud.poses)
         avg_pos_x = position_x / length
         avg_pos_y = position_y / length
-        avg_pos_z = position_z / length
+        avg_pos_z = 0
 
-        avg_or_x = orientation_x / length
-        avg_or_y = orientation_y / length
+        avg_or_x = 0
+        avg_or_y = 0
         avg_or_z = orientation_z / length
         avg_or_w = orientation_w / length
 
