@@ -72,7 +72,7 @@ class PFLocaliser(PFLocaliserBase):
         initial_particles = self.particlecloud.poses
         # Add 20% more particles in uniform random locations; this will allow us to find a more accurate estimation of
         # the robot's position in the event the current estimation is completely wrong
-        initial_particles += [self.generate_pose() for _ in range(round(len(initial_particles) * 0.2))]
+        initial_particles += [self.generate_pose() for _ in range(round(len(initial_particles) * 0.15))]
 
         # Calculate the weights of all particles and append them to an array, then calculate an average
         particles_weights = [self.sensor_model.get_weight(scan, particle) for particle in initial_particles]
@@ -81,7 +81,7 @@ class PFLocaliser(PFLocaliserBase):
 
         # we vary the amount of particles based on how certain the algorithm is of the robot's position
         particles_to_keep = round((100 / average_weight ** 0.5) - (average_weight / 10))
-        new_predicted_readings = round(10 * average_weight)
+        new_predicted_readings = max(20, round(10 * average_weight))
         self.set_pose_array_size(particles_to_keep)
         self.set_num_predicted_readings(new_predicted_readings)
 

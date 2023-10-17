@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# import turtle
+import turtle
 
 import rospy
 from sensor_msgs.msg import LaserScan
@@ -26,34 +26,34 @@ def calculate_colour(distance, max_distance):
 def callback(msg):
     print("TOMISPOG")
 
-    # turtle.speed(0)
-    # turtle.tracer(0, 0)  # This line disables update so that it's not as slow
-    # turtle.pencolor("black")
-    #
-    # # This draws the line for each laser bean
-    # for i in msg.ranges:
-    #     turtle.pencolor(calculate_colour(i, msg.range_max))
-    #
-    #     turtle.forward(i * 75)
-    #     turtle.backward(i * 75)
-    #     turtle.left(180 / len(msg.ranges))
+    turtle.speed(0)
+    turtle.tracer(0, 0)  # This line disables update so that it's not as slow
+    turtle.pencolor("black")
+
+    # This draws the line for each laser bean
+    for i in msg.ranges:
+        turtle.pencolor(calculate_colour(i, msg.range_max))
+
+        turtle.forward(i * 75)
+        turtle.backward(i * 75)
+        turtle.left(180 / len(msg.ranges))
 
     lowest = min(msg.ranges)
 
-    # This is to write TOMISPOG
-    # turtle.penup()
-    # turtle.setposition(-300, -50)
-    # turtle.pendown()
-    # turtle.pencolor(calculate_colour(lowest, msg.range_max))
-    # turtle.write("TOMISPOG", font=("Verdana", 30, "normal"))
-    # turtle.penup()
-    # turtle.setposition(0, 0)
-    # turtle.pendown()
+    #This is to write TOMISPOG
+    turtle.penup()
+    turtle.setposition(-300, -50)
+    turtle.pendown()
+    turtle.pencolor(calculate_colour(lowest, msg.range_max))
+    turtle.write("TOMISPOG", font=("Verdana", 30, "normal"))
+    turtle.penup()
+    turtle.setposition(0, 0)
+    turtle.pendown()
 
-    # Enabling update to draw the lines
-    # turtle.update()
-    # turtle.left(180)
-    # turtle.clear()
+    #Enabling update to draw the lines
+    turtle.update()
+    turtle.left(180)
+    turtle.clear()
 
     print(len(msg.ranges))
     print(lowest)
