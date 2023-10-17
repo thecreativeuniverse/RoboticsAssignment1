@@ -8,6 +8,7 @@ import random as rn
 from random import random, randint, choices
 from time import time
 
+
 class PFLocaliser(PFLocaliserBase):
 
     def __init__(self):
@@ -58,7 +59,7 @@ class PFLocaliser(PFLocaliserBase):
             width = self.sensor_model.map_width * self.sensor_model.map_resolution
             height = self.sensor_model.map_height * self.sensor_model.map_resolution
             # This is generating the nose we need to add to the elements
-            new_pose = Pose(position=Point((rn.uniform(0, width)),rn.uniform(0, height), 0),
+            new_pose = Pose(position=Point((rn.uniform(0, width)), rn.uniform(0, height), 0),
                             orientation=Quaternion(0, 0, rn.uniform(0, math.pi * 2), rn.uniform(0, math.pi ** 2)))
             new_particles.poses.append(new_pose)
 
@@ -76,52 +77,114 @@ class PFLocaliser(PFLocaliserBase):
             | scan (sensor_msgs.msg.LaserScan): laser scan to use for update
 
          """
-        particle_array = []
-        weight_array = []
 
-        for particle in self.particlecloud.poses:
-            particleWeight = self.sensor_model.get_weight(scan,particle)
-            particle_array.append(particle)
-            weight_array.append(particleWeight)
+        initial_particles = self.particlecloud.poses
+        particles_weights = [self.sensor_model.get_weight(scan, particle) for particle in self.particlecloud.poses]
+        sum_of_weights = sum(particles_weights)
+        particles_weights = [w / sum_of_weights for w in particles_weights]
+        particles_kept = []  # This is the S
+        current_cum_weight = particles_weights[0]
+        cum_weights = [current_cum_weight]
 
-        tick_size = 1 / self.poseArraySize
-        sum_of_weights = sum(weight_array)
-        normalised_weights = [w / sum_of_weights for w in weight_array]
+        m = self.poseArraySize
+        for i in range(1, m):
+            cum_weights.append(cum_weights[i - 1] + particles_weights[i])
 
+        tick_size = 1 / m
         current_threshold = rn.uniform(0, tick_size)
-        cum_weight = 0
 
-        kept_particles = []
-        kept_weights = []
+        # Safety in case it picks 0, shouldn't really enter this
+        while current_threshold == 0:
+            current_threshold = rn.uniform(0, tick_size)
 
-        for i in range(len(normalised_weights)):
-            normalised_weight = normalised_weights[i]
+        i = 0
+        for j in range(m):
+            while current_threshold > cum_weights[i]:
+                # print(f"incrementing i {i}")
+                i += 1
+            average_weight = sum_of_weights / len(particles_weights)
+            variance = (1 / (average_weight - 0.8))
+
+            particles_kept.append(Pose(position=Point(initial_particles[i].position.x + rn.normalvariate(0, variance),
+                                                      initial_particles[i].position.y + rn.normalvariate(0, variance),
+                                                      0),
+                                       orientation=Quaternion(0, 0,
+                                                              initial_particles[i].orientation.z + rn.normalvariate(0,
+                                                                                                                    variance),
+                                                              initial_particles[i].orientation.w + rn.normalvariate(0,
+                                                                                                                    variance))))
             current_threshold += tick_size
-            cum_weight += normalised_weight
-            if current_threshold > cum_weight:
-                continue
-            kept_particles.append(particle_array[i])
-            kept_weights.append(weight_array[i])
 
-        # rn.shuffle(new_particles)
-        print(f"REMOVED {self.poseArraySize - len(kept_particles)} PARTICLES")
+        self.particlecloud.poses = particles_kept
 
-        new_particles = kept_particles.copy()
-        variance = 0.5
-
-        if len(new_particles) == 0:
-            self.initialise_particle_cloud(self.estimatedpose)
-        else:
-            while len(new_particles) < self.poseArraySize:
-                random_pose_to_copy = choices(kept_particles, kept_weights, k=1)[0]
-                new_pose = Pose(position=Point(random_pose_to_copy.position.x + rn.normalvariate(0, variance), random_pose_to_copy.position.y + rn.normalvariate(0, variance), 0),
-                                orientation=Quaternion(0,0,random_pose_to_copy.orientation.z + rn.normalvariate(0, variance), random_pose_to_copy.orientation.w + rn.normalvariate(0, variance)))
-                new_particles.append(new_pose)
-
-            self.particlecloud.poses = new_particles
-        # return s
-
-        # TODO Add in number of particles at random locations at some point to factor in kidnapped robot problem
+        # # Initialization
+        # particle_array = []
+        # weight_array = []
+        #
+        # # Getting the weights of each particle and storing it in weight array
+        # for particle in self.particlecloud.poses:
+        #     particleWeight = self.sensor_model.get_weight(scan,particle)
+        #     particle_array.append(particle)
+        #     weight_array.append(particleWeight)
+        #
+        # # This is out M
+        # tick_size = 1 / (self.poseArraySize)
+        #
+        # # Normalizing the weights so that they are between 0 and 1
+        # sum_of_weights = sum(weight_array)
+        # # normalised_weights = [w / sum_of_weights for w in weight_array]
+        # cumulative_normalised_weights = [weight_array[0] / sum_of_weights]
+        # for i in range(1, len(weight_array)):
+        #     cumulative_normalised_weights.append(cumulative_normalised_weights[-1] + (weight_array[i] / sum_of_weights))
+        #
+        # # selecting what u1 will be (line 4)
+        # current_threshold = random() * tick_size
+        #
+        # # Initialising c1 to w1
+        #
+        # kept_particles = []
+        # kept_weights = []
+        #
+        # i = 0
+        #
+        # # Actual drawing of samples and filtering out bad weights
+        # for j in range(len(cumulative_normalised_weights)):
+        #     while current_threshold > cumulative_normalised_weights[i]:
+        #         i += 1
+        #     # print(f"threshold {current_threshold} cum weight {cumulative_normalised_weights[i]}")
+        #     kept_particles.append(particle_array[i])
+        #     kept_weights.append(weight_array[i])
+        #
+        #     # normalised_weight = normalised_weights[i]
+        #     # current_threshold += tick_size
+        #     # cum_weight += normalised_weight
+        #     # if current_threshold > cum_weight:
+        #     #     continue
+        #     # kept_particles.append(particle_array[i])
+        #     # kept_weights.append(weight_array[i])
+        #
+        # # rn.shuffle(new_particles)
+        # print(f"REMOVED {self.poseArraySize - len(kept_particles)} PARTICLES")
+        #
+        # new_particles = kept_particles.copy()
+        # variance = 0.5
+        #
+        # if len(new_particles) == 0:
+        #     print("=" * 1000)
+        #     self.initialise_particle_cloud(self.estimatedpose)
+        # else:
+        #     while len(new_particles) < self.poseArraySize:
+        #         random_pose_to_copy = choices(kept_particles, kept_weights, k=1)[0]
+        #         new_pose = Pose(position=Point(random_pose_to_copy.position.x + rn.normalvariate(0, variance), random_pose_to_copy.position.y + rn.normalvariate(0, variance), 0),
+        #                         orientation=Quaternion(0,0,random_pose_to_copy.orientation.z + rn.normalvariate(0, variance), random_pose_to_copy.orientation.w + rn.normalvariate(0, variance)))
+        #         new_particles.append(new_pose)
+        #
+        #     self.particlecloud.poses = new_particles
+        # # return s
+        #
+        # print(f"len new poses {len(self.particlecloud.poses)}")
+        #
+        # # TODO Add in number of particles at random locations at some point to factor in kidnapped robot problem
 
     def estimate_pose(self):
         """
