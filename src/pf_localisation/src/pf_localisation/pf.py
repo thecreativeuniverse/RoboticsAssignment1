@@ -1,12 +1,10 @@
-import numpy as np
-from geometry_msgs.msg import Pose, PoseArray, Quaternion, Point, PoseWithCovarianceStamped
-from .pf_base import PFLocaliserBase
 import math
-import rospy
-from .util import rotateQuaternion, getHeading
 import random as rn
-from random import random, randint, choices
-from time import time
+
+import rospy
+from geometry_msgs.msg import Pose, PoseArray, Quaternion, Point, PoseWithCovarianceStamped
+
+from .pf_base import PFLocaliserBase
 
 
 class PFLocaliser(PFLocaliserBase):
@@ -16,22 +14,18 @@ class PFLocaliser(PFLocaliserBase):
         super(PFLocaliser, self).__init__()
 
         # ----- Sensor model parameters
-        self.NUMBER_PREDICTED_READINGS = 20  # Number of readings to predict
+        self.set_num_predicted_readings(20)
 
-        # Set motion model parameters
+        # ----- Set motion model parameters
         self.ODOM_ROTATION_NOISE = 1  # Odometry model rotation noise
-        self.ODOM_TRANSLATION_NOISE = 1  # Odometry model x axis (forward) noise
-        self.ODOM_DRIFT_NOISE = 0.5  # Odometry model y axis (side-to-side) noise
+        self.ODOM_TRANSLATION_NOISE = 1  # Odometry model x-axis (forward) noise
+        self.ODOM_DRIFT_NOISE = 0.5  # Odometry model y-axis (side-to-side) noise
 
-        self.poseArraySize = 100
-        self.pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10, latch=True)
+        # ----- Set particle array parameters
+        self.pose_array_size = 100
 
-        initial_pose = PoseWithCovarianceStamped()
-        initial_pose.pose.pose = Pose(orientation=Quaternion(0, 0, 0, 0), position=Point(0, 0, 0))
-        self.init_pose = initial_pose
-
-        self.init_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=10, latch=True)
-        self.init_pose_pub.publish(self.estimatedpose)
+        init_pose_pub = rospy.Publisher('/initialpose', PoseWithCovarianceStamped, queue_size=10, latch=True)
+        init_pose_pub.publish(self.estimatedpose)
 
     def initialise_particle_cloud(self, initialpose):
         """
@@ -54,24 +48,13 @@ class PFLocaliser(PFLocaliserBase):
 
         # Range should be set to however many particles we want
         new_particles = PoseArray()
-
-        for i in range(self.poseArraySize):
-            width = self.sensor_model.map_width * self.sensor_model.map_resolution
-            height = self.sensor_model.map_height * self.sensor_model.map_resolution
-            # This is generating the nose we need to add to the elements
-            initial_pose_position = initialpose.pose.pose.position
-            initial_pose_orientation = initialpose.pose.pose.orientation
-
-            new_pose = Pose(position=Point(initial_pose_position.x + rn.normalvariate(0, 1), initial_pose_position.y + rn.normalvariate(0, 1), 0),
-                            orientation=Quaternion(0, 0, initial_pose_orientation.z + rn.normalvariate(0, 1),
-                                                   initial_pose_orientation.w + rn.normalvariate(0, 1)))
-            new_particles.poses.append(new_pose)
-
+        # Generate initial particle cloud: standard normal distribution around initialposition
+        new_particles.poses = [self.generate_pose(pose=initialpose.pose.pose, variance=1) for _ in range(self.pose_array_size)]
         self.particlecloud = new_particles
 
         return new_particles
 
-    # Shouldn't be allowing partciles outside the map?
+    # Shouldn't be allowing particles outside the map?
     def update_particle_cloud(self, scan):
         """
         This should use the supplied laser scan to update the current
@@ -82,40 +65,34 @@ class PFLocaliser(PFLocaliserBase):
 
          """
 
+        # Get current poses
         initial_particles = self.particlecloud.poses
-        # initial_particles = self.particlecloud.poses
+        # Add 20% more particles in uniform random locations; this will allow us to find a more accurate estimation of
+        # the robot's position in the event the current estimation is completely wrong
+        initial_particles += [self.generate_pose() for _ in range(round(len(initial_particles) * 0.2))]
 
-        width = self.sensor_model.map_width * self.sensor_model.map_resolution
-        height = self.sensor_model.map_height * self.sensor_model.map_resolution
-
-        for i in range(int(round(len(initial_particles) * 0.2))):
-            new_pose = Pose(position=Point((rn.uniform(0, width)), rn.uniform(0, height), 0),
-                            orientation=Quaternion(0, 0, rn.uniform(0, math.pi * 2), rn.uniform(0, math.pi ** 2)))
-            initial_particles.append(new_pose)
-
+        # Calculate the weights of all particles and append them to an array, then calculate an average
         particles_weights = [self.sensor_model.get_weight(scan, particle) for particle in initial_particles]
         sum_of_weights = sum(particles_weights)
-
         average_weight = sum_of_weights / len(particles_weights)
 
-        particles_to_keep = int(round((100 / average_weight ** 0.5) - (average_weight / 10)))
-        self.poseArraySize = particles_to_keep
-        self.NUMBER_PREDICTED_READINGS = int(round(10 * average_weight))
+        # we vary the amount of particles based on how certain the algorithm is of the robot's position
+        particles_to_keep = round((100 / average_weight ** 0.5) - (average_weight / 10))
+        new_predicted_readings = round(10 * average_weight)
+        self.set_pose_array_size(particles_to_keep)
+        self.set_num_predicted_readings(new_predicted_readings)
 
-        print("posearraysize:",self.poseArraySize)
-
+        # if the algorithm needs to remove particles it will remove the particles with the lowest weight
         while len(particles_weights) > particles_to_keep:
-            print("current length (dec)", len(particles_weights))
             index = particles_weights.index((min(particles_weights)))
-            del(particles_weights[index])
-            del(initial_particles[index])
+            del (particles_weights[index])
+            del (initial_particles[index])
 
+        # if the algorithm needs to generate particles it generates 50 particles and places the particle with the highest weight
         while len(particles_weights) < particles_to_keep:
-            print("current length (inc)", len(particles_weights))
             new_poses = []
             for i in range(50):
-                new_pose = Pose(position=Point((rn.uniform(0, width)), rn.uniform(0, height), 0),
-                            orientation=Quaternion(0, 0, rn.uniform(0, math.pi * 2), rn.uniform(0, math.pi ** 2)))
+                new_pose = self.generate_pose()
                 new_weight = self.sensor_model.get_weight(scan, new_pose)
                 new_poses.append((new_pose, new_weight))
             new_poses = sorted(new_poses, key=lambda x: x[1])
@@ -132,8 +109,7 @@ class PFLocaliser(PFLocaliserBase):
         current_cum_weight = particles_weights[0]
         cum_weights = [current_cum_weight]
 
-
-        m = self.poseArraySize
+        m = self.pose_array_size
         for i in range(1, m):
             cum_weights.append(cum_weights[i - 1] + particles_weights[i])
 
@@ -147,89 +123,12 @@ class PFLocaliser(PFLocaliserBase):
         i = 0
         for j in range(m):
             while current_threshold > cum_weights[i]:
-                # print(f"incrementing i {i}")
                 i += 1
 
-            particles_kept.append(Pose(position=Point(initial_particles[i].position.x + rn.normalvariate(0, variance),
-                                                      initial_particles[i].position.y + rn.normalvariate(0, variance),
-                                                      0),
-                                       orientation=Quaternion(0, 0,
-                                                              initial_particles[i].orientation.z + rn.normalvariate(0,
-                                                                                                                    variance),
-                                                              initial_particles[i].orientation.w + rn.normalvariate(0,
-                                                                                                                    variance))))
+            particles_kept.append(self.generate_pose(pose=initial_particles[i], variance=variance))
             current_threshold += tick_size
 
-        self.particlecloud.poses = particles_kept
-
-        # # Initialization
-        # particle_array = []
-        # weight_array = []
-        #
-        # # Getting the weights of each particle and storing it in weight array
-        # for particle in self.particlecloud.poses:
-        #     particleWeight = self.sensor_model.get_weight(scan,particle)
-        #     particle_array.append(particle)
-        #     weight_array.append(particleWeight)
-        #
-        # # This is out M
-        # tick_size = 1 / (self.poseArraySize)
-        #
-        # # Normalizing the weights so that they are between 0 and 1
-        # sum_of_weights = sum(weight_array)
-        # # normalised_weights = [w / sum_of_weights for w in weight_array]
-        # cumulative_normalised_weights = [weight_array[0] / sum_of_weights]
-        # for i in range(1, len(weight_array)):
-        #     cumulative_normalised_weights.append(cumulative_normalised_weights[-1] + (weight_array[i] / sum_of_weights))
-        #
-        # # selecting what u1 will be (line 4)
-        # current_threshold = random() * tick_size
-        #
-        # # Initialising c1 to w1
-        #
-        # kept_particles = []
-        # kept_weights = []
-        #
-        # i = 0
-        #
-        # # Actual drawing of samples and filtering out bad weights
-        # for j in range(len(cumulative_normalised_weights)):
-        #     while current_threshold > cumulative_normalised_weights[i]:
-        #         i += 1
-        #     # print(f"threshold {current_threshold} cum weight {cumulative_normalised_weights[i]}")
-        #     kept_particles.append(particle_array[i])
-        #     kept_weights.append(weight_array[i])
-        #
-        #     # normalised_weight = normalised_weights[i]
-        #     # current_threshold += tick_size
-        #     # cum_weight += normalised_weight
-        #     # if current_threshold > cum_weight:
-        #     #     continue
-        #     # kept_particles.append(particle_array[i])
-        #     # kept_weights.append(weight_array[i])
-        #
-        # # rn.shuffle(new_particles)
-        # print(f"REMOVED {self.poseArraySize - len(kept_particles)} PARTICLES")
-        #
-        # new_particles = kept_particles.copy()
-        # variance = 0.5
-        #
-        # if len(new_particles) == 0:
-        #     print("=" * 1000)
-        #     self.initialise_particle_cloud(self.estimatedpose)
-        # else:
-        #     while len(new_particles) < self.poseArraySize:
-        #         random_pose_to_copy = choices(kept_particles, kept_weights, k=1)[0]
-        #         new_pose = Pose(position=Point(random_pose_to_copy.position.x + rn.normalvariate(0, variance), random_pose_to_copy.position.y + rn.normalvariate(0, variance), 0),
-        #                         orientation=Quaternion(0,0,random_pose_to_copy.orientation.z + rn.normalvariate(0, variance), random_pose_to_copy.orientation.w + rn.normalvariate(0, variance)))
-        #         new_particles.append(new_pose)
-        #
-        #     self.particlecloud.poses = new_particles
-        # # return s
-        #
-        # print(f"len new poses {len(self.particlecloud.poses)}")
-        #
-        # # TODO Add in number of particles at random locations at some point to factor in kidnapped robot problem
+        self._update_poses(particles_kept)
 
     def estimate_pose(self):
         """
@@ -248,7 +147,7 @@ class PFLocaliser(PFLocaliserBase):
             | (geometry_msgs.msg.Pose) robot's estimated pose.
          """
 
-        ## Calculating closest particles
+        # Calculating closest particles
         position_x = 0
         position_y = 0
         position_z = 0
@@ -281,15 +180,17 @@ class PFLocaliser(PFLocaliserBase):
         # Finding 50% closest particles
         distances = []
         for particle in self.particlecloud.poses:
-            temp = math.sqrt((particle.position.x - avg_pos_x)**2 + (particle.position.y - avg_pos_y)**2 +(particle.position.z - avg_pos_z)**2 + (particle.orientation.x - avg_or_x)**2 + (particle.orientation.y - avg_or_y)**2 + (particle.orientation.z - avg_or_z)**2 +(particle.orientation.w - avg_or_w)**2)
+            temp = math.sqrt((particle.position.x - avg_pos_x) ** 2 + (particle.position.y - avg_pos_y) ** 2 + (
+                    particle.position.z - avg_pos_z) ** 2 + (particle.orientation.x - avg_or_x) ** 2 + (
+                                     particle.orientation.y - avg_or_y) ** 2 + (
+                                     particle.orientation.z - avg_or_z) ** 2 + (
+                                     particle.orientation.w - avg_or_w) ** 2)
             distances.append((particle, temp))
 
-        
-        sorted_distance = sorted(distances, key = lambda x: x[1])
+        sorted_distance = sorted(distances, key=lambda x: x[1])
         # When wanting half of the particles use [:50] at the end of the list name
-        #print(sorted_distance[:50])
 
-        halved = length//2
+        halved = length // 2
 
         sorted_particles = sorted_distance[:halved]
 
@@ -323,3 +224,26 @@ class PFLocaliser(PFLocaliserBase):
 
         return Pose(orientation=Quaternion(avg_or_x, avg_or_y, avg_or_z, avg_or_w),
                     position=Point(avg_pos_x, avg_pos_y, avg_pos_z))
+
+    def set_pose_array_size(self, new_array_size):
+        self.pose_array_size = new_array_size
+
+    def set_num_predicted_readings(self, num_predicted_readings):
+        self.NUMBER_PREDICTED_READINGS = num_predicted_readings
+
+    def _update_poses(self, new_poses):
+        self.particlecloud.poses = new_poses
+
+    def generate_pose(self, pose=None, variance=0.0):
+        width = self.sensor_model.map_width * self.sensor_model.map_resolution
+        height = self.sensor_model.map_height * self.sensor_model.map_resolution
+        if pose is not None:
+            return Pose(position=Point(pose.position.x + rn.normalvariate(0, variance),
+                                       pose.position.y + rn.normalvariate(0, variance),
+                                       0),
+                        orientation=Quaternion(0, 0,
+                                               pose.orientation.z + rn.normalvariate(0, variance),
+                                               pose.orientation.w + rn.normalvariate(0, variance)))
+        else:
+            return Pose(position=Point((rn.uniform(0, width)), rn.uniform(0, height), 0),
+                        orientation=Quaternion(0, 0, rn.uniform(0, math.pi * 2), rn.uniform(0, math.pi ** 2)))
