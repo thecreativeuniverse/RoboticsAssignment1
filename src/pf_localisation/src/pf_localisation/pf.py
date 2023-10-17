@@ -162,7 +162,8 @@ class PFLocaliser(PFLocaliserBase):
             | (geometry_msgs.msg.Pose) robot's estimated pose.
          """
 
-        # Calculating closest particles
+        ## Calculating closest particles
+        # Initialise positions and orientation sums
         position_x = 0
         position_y = 0
         position_z = 0
@@ -172,6 +173,7 @@ class PFLocaliser(PFLocaliserBase):
         orientation_z = 0
         orientation_w = 0
 
+        # Calculate total of positions and orientations
         for particle in self.particlecloud.poses:
             position_x += particle.position.x
             position_y += particle.position.y
@@ -182,17 +184,19 @@ class PFLocaliser(PFLocaliserBase):
             orientation_z += particle.orientation.z
             orientation_w += particle.orientation.w
 
+        # Calculate averages
         length = len(self.particlecloud.poses)
         avg_pos_x = position_x / length
         avg_pos_y = position_y / length
-        avg_pos_z = 0
+        avg_pos_z = 0 #The robot will not be flying
 
-        avg_or_x = 0
+        avg_or_x = 0 # The robot has no pitch or roll
         avg_or_y = 0
         avg_or_z = orientation_z / length
         avg_or_w = orientation_w / length
 
-        # Finding 50% closest particles
+        ## Finding 50% closest particles
+        # Calculating distance between particle and mean
         distances = []
         for particle in self.particlecloud.poses:
             temp = math.sqrt((particle.position.x - avg_pos_x) ** 2 + (particle.position.y - avg_pos_y) ** 2 + (
@@ -202,13 +206,16 @@ class PFLocaliser(PFLocaliserBase):
                                      particle.orientation.w - avg_or_w) ** 2)
             distances.append((particle, temp))
 
+        # Order particles on distances
         sorted_distance = sorted(distances, key=lambda x: x[1])
         # When wanting half of the particles use [:50] at the end of the list name
 
+        # calculate half
         halved = length // 2
 
         sorted_particles = sorted_distance[:halved]
 
+        # Initialise positions and orientations sums
         position_x = 0
         position_y = 0
         position_z = 0
@@ -218,6 +225,7 @@ class PFLocaliser(PFLocaliserBase):
         orientation_z = 0
         orientation_w = 0
 
+        # Calculate total of position and orientation
         for particle in sorted_particles:
             position_x += particle[0].position.x
             position_y += particle[0].position.y
@@ -228,6 +236,7 @@ class PFLocaliser(PFLocaliserBase):
             orientation_z += particle[0].orientation.z
             orientation_w += particle[0].orientation.w
 
+        # Calculate the averages for half
         avg_pos_x = position_x / halved
         avg_pos_y = position_y / halved
         avg_pos_z = 0
@@ -237,6 +246,7 @@ class PFLocaliser(PFLocaliserBase):
         avg_or_z = orientation_z / halved
         avg_or_w = orientation_w / halved
 
+        # Return predicted pose
         return Pose(orientation=Quaternion(avg_or_x, avg_or_y, avg_or_z, avg_or_w),
                     position=Point(avg_pos_x, avg_pos_y, avg_pos_z))
 
