@@ -148,6 +148,8 @@ class PFLocaliser(PFLocaliserBase):
         :Return:
             | (geometry_msgs.msg.Pose) robot's estimated pose.
          """
+
+        ## Calculating closest particles
         position_x = 0
         position_y = 0
         position_z = 0
@@ -176,6 +178,49 @@ class PFLocaliser(PFLocaliserBase):
         avg_or_y = 0
         avg_or_z = orientation_z / length
         avg_or_w = orientation_w / length
+
+        # Finding 50% closest particles
+        distances = []
+        for particle in self.particlecloud.poses:
+            temp = math.sqrt((particle.position.x - avg_pos_x)**2 + (particle.position.y - avg_pos_y)**2 +(particle.position.z - avg_pos_z)**2 + (particle.orientation.x - avg_or_x)**2 + (particle.orientation.y - avg_or_y)**2 + (particle.orientation.z - avg_or_z)**2 +(particle.orientation.w - avg_or_w)**2)
+            distances.append((particle, temp))
+
+        
+        sorted_distance = sorted(distances, key = lambda x: x[1])
+        # When wanting half of the particles use [:50] at the end of the list name
+        #print(sorted_distance[:50])
+
+        halved = length//2
+
+        sorted_particles = sorted_distance[:halved]
+
+        position_x = 0
+        position_y = 0
+        position_z = 0
+
+        orientation_x = 0
+        orientation_y = 0
+        orientation_z = 0
+        orientation_w = 0
+
+        for particle in sorted_particles:
+            position_x += particle[0].position.x
+            position_y += particle[0].position.y
+            position_z += particle[0].position.z
+
+            orientation_x += particle[0].orientation.x
+            orientation_y += particle[0].orientation.y
+            orientation_z += particle[0].orientation.z
+            orientation_w += particle[0].orientation.w
+
+        avg_pos_x = position_x / halved
+        avg_pos_y = position_y / halved
+        avg_pos_z = 0
+
+        avg_or_x = 0
+        avg_or_y = 0
+        avg_or_z = orientation_z / halved
+        avg_or_w = orientation_w / halved
 
         return Pose(orientation=Quaternion(avg_or_x, avg_or_y, avg_or_z, avg_or_w),
                     position=Point(avg_pos_x, avg_pos_y, avg_pos_z))
