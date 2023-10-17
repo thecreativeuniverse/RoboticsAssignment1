@@ -46,6 +46,9 @@ class PFLocaliser(PFLocaliserBase):
         self.particlecloud = PoseArray()
         self.particlecloud.header.frame_id = "map"
 
+        # update the number of particles (in the event set 2d position is run)
+        self.set_pose_array_size(100)
+
         # Range should be set to however many particles we want
         new_particles = PoseArray()
         # Generate initial particle cloud: standard normal distribution around initialposition
