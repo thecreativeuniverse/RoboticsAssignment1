@@ -4,10 +4,9 @@ from .pf_base import PFLocaliserBase
 import math
 import rospy
 from .util import rotateQuaternion, getHeading
-import random
+import random as rn
 from random import random, randint
 from time import time
-
 
 class PFLocaliser(PFLocaliserBase):
 
@@ -52,20 +51,15 @@ class PFLocaliser(PFLocaliserBase):
         self.particlecloud = PoseArray()
         self.particlecloud.header.frame_id = "map"
 
-        # Initial pose is a pose with covariance stamped
-        initial_pose_position = initialpose.pose.pose.position
-        initial_pose_orientation = initialpose.pose.pose.orientation
-
         # Range should be set to however many particles we want
         new_particles = PoseArray()
 
         for i in range(self.poseArraySize):
+            width = self.sensor_model.map_width * self.sensor_model.map_resolution
+            height = self.sensor_model.map_height * self.sensor_model.map_resolution
             # This is generating the nose we need to add to the elements
-            noise = random.normalvariate(0, 1)
-
-            new_pose = Pose(position=Point(initial_pose_position.x + noise, initial_pose_position.y + noise, 0),
-                            orientation=Quaternion(0, 0, initial_pose_orientation.z + noise,
-                                                   initial_pose_orientation.w + noise))
+            new_pose = Pose(position=Point((rn.uniform(0, width)),rn.uniform(0, height), 0),
+                            orientation=Quaternion(0, 0, rn.uniform(0, math.pi * 2), rn.uniform(0, math.pi ** 2)))
             new_particles.poses.append(new_pose)
 
         self.particlecloud = new_particles
@@ -94,6 +88,14 @@ class PFLocaliser(PFLocaliserBase):
         percentageToDelete =50
         fractionToDelete = (1/percentageToDelete)*100
         tuple_array_split = sorted(tuple_array, key=lambda x: x[1])[int(round(self.poseArraySize / fractionToDelete)):]
+
+        # tuple_array = sorted(tuple_array, key=lambda x: x[1])
+        # threshold = 1.2
+        # for i in range(len(tuple_array)):
+        #     if tuple_array[i][1] >= threshold:
+        #         break
+        # tuple_array_split = tuple_array[i:]
+
         new_particles = [t[0] for t in tuple_array_split]
 
         # tick_size = 1 / (self.poseArraySize)
@@ -116,10 +118,13 @@ class PFLocaliser(PFLocaliserBase):
         # rn.shuffle(new_particles)
         print(f"REMOVED {self.poseArraySize - len(new_particles)} PARTICLES")
 
+        variance = 1
+
         while len(new_particles) < self.poseArraySize:
             random_pose_to_copy = new_particles[randint(0, len(new_particles) - 1)]
-            new_pose = Pose(position=Point(random_pose_to_copy.position.x + (random() * self.ODOM_TRANSLATION_NOISE) - (self.ODOM_TRANSLATION_NOISE / 2),random_pose_to_copy.position.y + (random() * self.ODOM_TRANSLATION_NOISE) - (self.ODOM_TRANSLATION_NOISE / 2), 0),
-                            orientation=Quaternion(0,0,random_pose_to_copy.orientation.z + (random() * self.ODOM_TRANSLATION_NOISE) - (self.ODOM_TRANSLATION_NOISE / 2), random_pose_to_copy.orientation.w + (random() * self.ODOM_TRANSLATION_NOISE) - (self.ODOM_TRANSLATION_NOISE / 2)))
+
+            new_pose = Pose(position=Point(random_pose_to_copy.position.x + rn.normalvariate(0, variance),random_pose_to_copy.position.y + rn.normalvariate(0, variance), 0),
+                            orientation=Quaternion(0,0,random_pose_to_copy.orientation.z + rn.normalvariate(0, variance), random_pose_to_copy.orientation.w + rn.normalvariate(0, variance)))
             new_particles.append(new_pose)
 
         self.particlecloud.poses = new_particles
