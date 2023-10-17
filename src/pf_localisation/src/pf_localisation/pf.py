@@ -70,11 +70,9 @@ class PFLocaliser(PFLocaliserBase):
 
         # Get current poses
         initial_particles = self.particlecloud.poses
-        # Add 20% more particles in uniform random locations; this will allow us to find a more accurate estimation of
-        # the robot's position in the event the current estimation is completely wrong
-        initial_particles += [self.generate_pose() for _ in range(round(len(initial_particles) * 0.15))]
 
-        # Calculate the weights of all particles and append them to an array, then calculate an average
+        # Calculate the weights of all particles and append them to an array, then calculate an average.
+        # This will be used specifically to calulate how many particles to redraw.
         particles_weights = [self.sensor_model.get_weight(scan, particle) for particle in initial_particles]
         sum_of_weights = sum(particles_weights)
         average_weight = sum_of_weights / len(particles_weights)
@@ -84,6 +82,13 @@ class PFLocaliser(PFLocaliserBase):
         new_predicted_readings = max(20, round(10 * average_weight))
         self.set_pose_array_size(particles_to_keep)
         self.set_num_predicted_readings(new_predicted_readings)
+
+        # Add 15% more particles in uniform random locations; this will allow us to find a more accurate estimation of
+        # the robot's position in the event the current estimation is completely wrong
+        initial_particles += [self.generate_pose() for _ in range(round(len(initial_particles) * 0.15))]
+
+        # Recalculate the weights of all particles and append them to an array, then calculate an average
+        particles_weights = [self.sensor_model.get_weight(scan, particle) for particle in initial_particles]
 
         # if the algorithm needs to remove particles it will remove the particles with the lowest weight
         while len(particles_weights) > particles_to_keep:
