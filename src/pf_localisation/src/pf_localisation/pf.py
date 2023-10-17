@@ -4,8 +4,8 @@ from .pf_base import PFLocaliserBase
 import math
 import rospy
 from .util import rotateQuaternion, getHeading
+import random
 from random import random, randint
-import random as rn
 from time import time
 
 
@@ -48,22 +48,31 @@ class PFLocaliser(PFLocaliserBase):
             | (geometry_msgs.msg.PoseArray) poses of the particles
         """
 
+        # Initialising self.particlecloud
         self.particlecloud = PoseArray()
         self.particlecloud.header.frame_id = "map"
-        # poses = [Pose() for i in range(self.poseArraySize)]
-        # for pose in poses:
-        #    pose.orientation = Quaternion
-        # map_range = self.sensor_model.calc_map_range(self.estimatedpose.pose.pose.position.x, self.estimatedpose.pose.pose.position.y,
-        #                              getHeading(self.estimatedpose.pose.pose.orientation))
-        map_range = 30
-        initialised_poses = [Pose(orientation=Quaternion(0, 0, (random() * 2) - 1, (random() * 2) - 1),
-                                  position=Point((random() * map_range), (random() * map_range), 0)) for i in
-                             range(self.poseArraySize)]
-        self.particlecloud.poses = initialised_poses
-        self.pub.publish(self.particlecloud)
 
-        return self.particlecloud
+        # Initial pose is a pose with covariance stamped
+        initial_pose_position = initialpose.pose.pose.position
+        initial_pose_orientation = initialpose.pose.pose.orientation
 
+        # Range should be set to however many particles we want
+        new_particles = PoseArray()
+
+        for i in range(self.poseArraySize):
+            # This is generating the nose we need to add to the elements
+            noise = random.normalvariate(0, 1)
+
+            new_pose = Pose(position=Point(initial_pose_position.x + noise, initial_pose_position.y + noise, 0),
+                            orientation=Quaternion(0, 0, initial_pose_orientation.z + noise,
+                                                   initial_pose_orientation.w + noise))
+            new_particles.poses.append(new_pose)
+
+        self.particlecloud = new_particles
+
+        return new_particles
+
+    # Shouldn't be allowing partciles outside the map?
     def update_particle_cloud(self, scan):
         """
         This should use the supplied laser scan to update the current
@@ -86,8 +95,6 @@ class PFLocaliser(PFLocaliserBase):
         fractionToDelete = (1/percentageToDelete)*100
         tuple_array_split = sorted(tuple_array, key=lambda x: x[1])[int(round(self.poseArraySize / fractionToDelete)):]
         new_particles = [t[0] for t in tuple_array_split]
-
-
 
         # tick_size = 1 / (self.poseArraySize)
         # tick_size = 0.3
@@ -115,9 +122,7 @@ class PFLocaliser(PFLocaliserBase):
                             orientation=Quaternion(0,0,random_pose_to_copy.orientation.z + (random() * self.ODOM_TRANSLATION_NOISE) - (self.ODOM_TRANSLATION_NOISE / 2), random_pose_to_copy.orientation.w + (random() * self.ODOM_TRANSLATION_NOISE) - (self.ODOM_TRANSLATION_NOISE / 2)))
             new_particles.append(new_pose)
 
-
         self.particlecloud.poses = new_particles
-
         # return s
 
         # TODO Add in number of particles at random locations at some point to factor in kidnapped robot problem
