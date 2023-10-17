@@ -59,8 +59,12 @@ class PFLocaliser(PFLocaliserBase):
             width = self.sensor_model.map_width * self.sensor_model.map_resolution
             height = self.sensor_model.map_height * self.sensor_model.map_resolution
             # This is generating the nose we need to add to the elements
-            new_pose = Pose(position=Point((rn.uniform(0, width)), rn.uniform(0, height), 0),
-                            orientation=Quaternion(0, 0, rn.uniform(0, math.pi * 2), rn.uniform(0, math.pi ** 2)))
+            initial_pose_position = initialpose.pose.pose.position
+            initial_pose_orientation = initialpose.pose.pose.orientation
+
+            new_pose = Pose(position=Point(initial_pose_position.x + rn.normalvariate(0, 1), initial_pose_position.y + rn.normalvariate(0, 1), 0),
+                            orientation=Quaternion(0, 0, initial_pose_orientation.z + rn.normalvariate(0, 1),
+                                                   initial_pose_orientation.w + rn.normalvariate(0, 1)))
             new_particles.poses.append(new_pose)
 
         self.particlecloud = new_particles
@@ -79,16 +83,43 @@ class PFLocaliser(PFLocaliserBase):
          """
 
         initial_particles = self.particlecloud.poses
-        particles_weights = [self.sensor_model.get_weight(scan, particle) for particle in self.particlecloud.poses]
+        old_particles = self.particlecloud.poses
+        particles_weights = [self.sensor_model.get_weight(scan, particle) for particle in old_particles]
 
         sum_of_weights = sum(particles_weights)
 
         average_weight = sum_of_weights / len(particles_weights)
-        variance = (1 / (average_weight - 0.8))
 
-        particles_to_keep = 100 * ()
+        particles_to_keep = int(round((100 / average_weight ** 0.5) - (average_weight / 10)))
+        self.poseArraySize = particles_to_keep
+        self.NUMBER_PREDICTED_READINGS = int(round(10 * average_weight))
+
+        print("posearraysize:",self.poseArraySize)
+
+        while len(particles_weights) > particles_to_keep:
+            print("current length (dec)", len(particles_weights))
+            index = particles_weights.index((min(particles_weights)))
+            del(particles_weights[index])
+            del(old_particles[index])
+
+        width = self.sensor_model.map_width * self.sensor_model.map_resolution
+        height = self.sensor_model.map_height * self.sensor_model.map_resolution
+        while len(particles_weights) < particles_to_keep:
+            print("current length (inc)", len(particles_weights))
+            new_poses = []
+            for i in range(50):
+                new_pose = Pose(position=Point((rn.uniform(0, width)), rn.uniform(0, height), 0),
+                            orientation=Quaternion(0, 0, rn.uniform(0, math.pi * 2), rn.uniform(0, math.pi ** 2)))
+                new_weight = self.sensor_model.get_weight(scan, new_pose)
+                new_poses.append((new_pose, new_weight))
+            new_poses = sorted(new_poses, key=lambda x: x[1])
+
+            old_particles.append(new_poses[-1][0])
+            particles_weights.append(new_poses[-1][1])
 
         sum_of_weights = sum(particles_weights)
+        average_weight = sum_of_weights / len(particles_weights)
+        variance = (1 / (average_weight - 0.8))
 
         particles_weights = [w / sum_of_weights for w in particles_weights]
         particles_kept = []  # This is the S
