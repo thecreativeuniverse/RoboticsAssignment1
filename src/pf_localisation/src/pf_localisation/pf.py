@@ -83,9 +83,17 @@ class PFLocaliser(PFLocaliserBase):
          """
 
         initial_particles = self.particlecloud.poses
-        old_particles = self.particlecloud.poses
-        particles_weights = [self.sensor_model.get_weight(scan, particle) for particle in old_particles]
+        # initial_particles = self.particlecloud.poses
 
+        width = self.sensor_model.map_width * self.sensor_model.map_resolution
+        height = self.sensor_model.map_height * self.sensor_model.map_resolution
+
+        for i in range(int(round(len(initial_particles) * 0.2))):
+            new_pose = Pose(position=Point((rn.uniform(0, width)), rn.uniform(0, height), 0),
+                            orientation=Quaternion(0, 0, rn.uniform(0, math.pi * 2), rn.uniform(0, math.pi ** 2)))
+            initial_particles.append(new_pose)
+
+        particles_weights = [self.sensor_model.get_weight(scan, particle) for particle in initial_particles]
         sum_of_weights = sum(particles_weights)
 
         average_weight = sum_of_weights / len(particles_weights)
@@ -100,10 +108,8 @@ class PFLocaliser(PFLocaliserBase):
             print("current length (dec)", len(particles_weights))
             index = particles_weights.index((min(particles_weights)))
             del(particles_weights[index])
-            del(old_particles[index])
+            del(initial_particles[index])
 
-        width = self.sensor_model.map_width * self.sensor_model.map_resolution
-        height = self.sensor_model.map_height * self.sensor_model.map_resolution
         while len(particles_weights) < particles_to_keep:
             print("current length (inc)", len(particles_weights))
             new_poses = []
@@ -114,7 +120,7 @@ class PFLocaliser(PFLocaliserBase):
                 new_poses.append((new_pose, new_weight))
             new_poses = sorted(new_poses, key=lambda x: x[1])
 
-            old_particles.append(new_poses[-1][0])
+            initial_particles.append(new_poses[-1][0])
             particles_weights.append(new_poses[-1][1])
 
         sum_of_weights = sum(particles_weights)
