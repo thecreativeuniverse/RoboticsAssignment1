@@ -4,8 +4,8 @@ from .pf_base import PFLocaliserBase
 import math
 import rospy
 from .util import rotateQuaternion, getHeading
+import random
 from random import random, randint
-import random as rn
 from time import time
 
 
@@ -23,7 +23,7 @@ class PFLocaliser(PFLocaliserBase):
         self.ODOM_TRANSLATION_NOISE = 0.5  # Odometry model x axis (forward) noise
         self.ODOM_DRIFT_NOISE = 0.5  # Odometry model y axis (side-to-side) noise
 
-        self.poseArraySize = 200
+        self.poseArraySize = 100
         self.pub = rospy.Publisher('/particlecloud', PoseArray, queue_size=10, latch=True)
 
         initial_pose = PoseWithCovarianceStamped()
@@ -48,23 +48,32 @@ class PFLocaliser(PFLocaliserBase):
             | (geometry_msgs.msg.PoseArray) poses of the particles
         """
 
+        # Initialising self.particlecloud
         self.particlecloud = PoseArray()
         self.particlecloud.header.frame_id = "map"
-        # poses = [Pose() for i in range(self.poseArraySize)]
-        # for pose in poses:
-        #    pose.orientation = Quaternion
-        # map_range = self.sensor_model.calc_map_range(self.estimatedpose.pose.pose.position.x, self.estimatedpose.pose.pose.position.y,
-        #                              getHeading(self.estimatedpose.pose.pose.orientation))
-        map_range = 30
-        initialised_poses = [Pose(orientation=Quaternion(0, 0, (random()*2)-1, (random()*2)-1),
-                                  position=Point((random() * map_range), (random() * map_range), 0)) for i in range(self.poseArraySize)]
-        self.particlecloud.poses = initialised_poses
-        self.pub.publish(self.particlecloud)
+
+        # Initial pose is a pose with covariance stamped
+        initial_pose_position = initialpose.pose.pose.position
+        initial_pose_orientation = initialpose.pose.pose.orientation
+
+        # Range should be set to however many particles we want
+        new_particles = PoseArray()
+
+        for i in range(self.poseArraySize):
+            # This is generating the nose we need to add to the elements
+            noise = random.normalvariate(0, 1)
+
+            new_pose = Pose(position=Point(initial_pose_position.x + noise, initial_pose_position.y + noise, 0),
+                            orientation=Quaternion(0, 0, initial_pose_orientation.z + noise,
+                                                   initial_pose_orientation.w + noise))
+            new_particles.poses.append(new_pose)
 
 
+        self.particlecloud = new_particles
 
-        return self.particlecloud
+        return new_particles
 
+    # Shouldn't be allowing partciles outside the map?
     def update_particle_cloud(self, scan):
         """
         This should use the supplied laser scan to update the current
@@ -77,7 +86,7 @@ class PFLocaliser(PFLocaliserBase):
         # Initialise the post position set
         s = []
         # Getting the weights aka line 4
-        weights =[]
+        weights = []
         for particle in self.particlecloud.poses:
             weight = self.sensor_model.get_weight(scan, particle)
             print(f"paritcle pos={particle.position.x} {particle.position.y}\tparticleweight={weight}")
@@ -89,7 +98,7 @@ class PFLocaliser(PFLocaliserBase):
         summed_weights = sum(weights)
         weights = [weight / summed_weights for weight in weights]
         cum_weights = [weights[0]]
-        for i in range(1,len(weights)):
+        for i in range(1, len(weights)):
             cum_weights.append(cum_weights[-1] + weights[i])
 
         # Initialising the cumulative weights array
@@ -113,11 +122,11 @@ class PFLocaliser(PFLocaliserBase):
 
         map_range = 30
         for j in range(self.poseArraySize):
-            if u <= cum_weights[j]: # doesn't like this particle. make a new one based on last accepted no
+            if u <= cum_weights[j]:  # doesn't like this particle. make a new one based on last accepted no
                 s += [self.particlecloud.poses[j]]
             u += m_inv
         while len(s) < self.poseArraySize:
-            new_pose = Pose(orientation=Quaternion(0, 0, (random()*2)-1, (random()*2)-1))
+            new_pose = Pose(orientation=Quaternion(0, 0, (random() * 2) - 1, (random() * 2) - 1))
             new_pose.position = s[randint(0, len(s) - 1)].position
             new_pose.position.x += (random() * self.ODOM_TRANSLATION_NOISE) - self.ODOM_TRANSLATION_NOISE / 2
             new_pose.position.y += (random() * self.ODOM_TRANSLATION_NOISE) - self.ODOM_TRANSLATION_NOISE / 2
@@ -125,10 +134,9 @@ class PFLocaliser(PFLocaliserBase):
             new_pose.orientation.w += (random() * self.ODOM_ROTATION_NOISE) - self.ODOM_ROTATION_NOISE / 2
             s += [new_pose]
 
-
         self.particlecloud.poses = s
 
-        #return s
+        # return s
 
         # TODO Add in number of particles at random locations at some point to factor in kidnapped robot problem
 
@@ -177,4 +185,5 @@ class PFLocaliser(PFLocaliserBase):
         avg_or_z = orientation_z / length
         avg_or_w = orientation_w / length
 
-        return Pose(orientation=Quaternion(avg_or_x, avg_or_y, avg_or_z, avg_or_w), position=Point(avg_pos_x, avg_pos_y, avg_pos_z))
+        return Pose(orientation=Quaternion(avg_or_x, avg_or_y, avg_or_z, avg_or_w),
+                    position=Point(avg_pos_x, avg_pos_y, avg_pos_z))
