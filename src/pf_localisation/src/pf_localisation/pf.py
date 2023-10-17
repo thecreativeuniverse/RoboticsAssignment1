@@ -5,7 +5,7 @@ import math
 import rospy
 from .util import rotateQuaternion, getHeading
 import random as rn
-from random import random, randint
+from random import random, randint, choices
 from time import time
 
 class PFLocaliser(PFLocaliserBase):
@@ -78,56 +78,47 @@ class PFLocaliser(PFLocaliserBase):
          """
         particle_array = []
         weight_array = []
-        tuple_array = []
+
         for particle in self.particlecloud.poses:
             particleWeight = self.sensor_model.get_weight(scan,particle)
             particle_array.append(particle)
             weight_array.append(particleWeight)
-            tuple_array.append((particle, particleWeight))
 
-        percentageToDelete =50
-        fractionToDelete = (1/percentageToDelete)*100
-        tuple_array_split = sorted(tuple_array, key=lambda x: x[1])[int(round(self.poseArraySize / fractionToDelete)):]
+        tick_size = 1 / self.poseArraySize
+        sum_of_weights = sum(weight_array)
+        normalised_weights = [w / sum_of_weights for w in weight_array]
 
-        # tuple_array = sorted(tuple_array, key=lambda x: x[1])
-        # threshold = 1.2
-        # for i in range(len(tuple_array)):
-        #     if tuple_array[i][1] >= threshold:
-        #         break
-        # tuple_array_split = tuple_array[i:]
+        current_threshold = rn.uniform(0, tick_size)
+        cum_weight = 0
 
-        new_particles = [t[0] for t in tuple_array_split]
+        kept_particles = []
+        kept_weights = []
 
-        # tick_size = 1 / (self.poseArraySize)
-        # tick_size = 0.3
-        # sum_of_weights = sum(weight_array)
-        # normalised_weights = [w / sum_of_weights for w in weight_array]
-
-        # current_threshold = random() * tick_size
-        # cum_weight = 0
-
-        # new_particles = []
-
-        # for i in range(len(normalised_weights)):
-        #     normalised_weight = normalised_weights[i]
-        #     cum_weight += normalised_weight
-        #     if current_threshold > cum_weight:
-        #         continue
-        #     new_particles.append(particle_array[i])
+        for i in range(len(normalised_weights)):
+            normalised_weight = normalised_weights[i]
+            current_threshold += tick_size
+            cum_weight += normalised_weight
+            if current_threshold > cum_weight:
+                continue
+            kept_particles.append(particle_array[i])
+            kept_weights.append(weight_array[i])
 
         # rn.shuffle(new_particles)
-        print(f"REMOVED {self.poseArraySize - len(new_particles)} PARTICLES")
+        print(f"REMOVED {self.poseArraySize - len(kept_particles)} PARTICLES")
 
-        variance = 1
+        new_particles = kept_particles.copy()
+        variance = 0.5
 
-        while len(new_particles) < self.poseArraySize:
-            random_pose_to_copy = new_particles[randint(0, len(new_particles) - 1)]
+        if len(new_particles) == 0:
+            self.initialise_particle_cloud(self.estimatedpose)
+        else:
+            while len(new_particles) < self.poseArraySize:
+                random_pose_to_copy = choices(kept_particles, kept_weights, k=1)[0]
+                new_pose = Pose(position=Point(random_pose_to_copy.position.x + rn.normalvariate(0, variance), random_pose_to_copy.position.y + rn.normalvariate(0, variance), 0),
+                                orientation=Quaternion(0,0,random_pose_to_copy.orientation.z + rn.normalvariate(0, variance), random_pose_to_copy.orientation.w + rn.normalvariate(0, variance)))
+                new_particles.append(new_pose)
 
-            new_pose = Pose(position=Point(random_pose_to_copy.position.x + rn.normalvariate(0, variance),random_pose_to_copy.position.y + rn.normalvariate(0, variance), 0),
-                            orientation=Quaternion(0,0,random_pose_to_copy.orientation.z + rn.normalvariate(0, variance), random_pose_to_copy.orientation.w + rn.normalvariate(0, variance)))
-            new_particles.append(new_pose)
-
-        self.particlecloud.poses = new_particles
+            self.particlecloud.poses = new_particles
         # return s
 
         # TODO Add in number of particles at random locations at some point to factor in kidnapped robot problem
