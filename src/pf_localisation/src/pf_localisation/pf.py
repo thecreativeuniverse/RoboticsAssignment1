@@ -80,11 +80,21 @@ class PFLocaliser(PFLocaliserBase):
 
         initial_particles = self.particlecloud.poses
         particles_weights = [self.sensor_model.get_weight(scan, particle) for particle in self.particlecloud.poses]
+
         sum_of_weights = sum(particles_weights)
+
+        average_weight = sum_of_weights / len(particles_weights)
+        variance = (1 / (average_weight - 0.8))
+
+        particles_to_keep = 100 * ()
+
+        sum_of_weights = sum(particles_weights)
+
         particles_weights = [w / sum_of_weights for w in particles_weights]
         particles_kept = []  # This is the S
         current_cum_weight = particles_weights[0]
         cum_weights = [current_cum_weight]
+
 
         m = self.poseArraySize
         for i in range(1, m):
@@ -102,8 +112,6 @@ class PFLocaliser(PFLocaliserBase):
             while current_threshold > cum_weights[i]:
                 # print(f"incrementing i {i}")
                 i += 1
-            average_weight = sum_of_weights / len(particles_weights)
-            variance = (1 / (average_weight - 0.8))
 
             particles_kept.append(Pose(position=Point(initial_particles[i].position.x + rn.normalvariate(0, variance),
                                                       initial_particles[i].position.y + rn.normalvariate(0, variance),
