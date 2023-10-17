@@ -88,7 +88,8 @@ class PFLocaliser(PFLocaliserBase):
             del (particles_weights[index])
             del (initial_particles[index])
 
-        # if the algorithm needs to generate particles it generates 50 particles and places the particle with the highest weight
+        # if the algorithm needs to generate particles it generates 50
+        # particles and places the particle with the highest weight
         while len(particles_weights) < particles_to_keep:
             new_poses = []
             for i in range(50):
@@ -100,34 +101,40 @@ class PFLocaliser(PFLocaliserBase):
             initial_particles.append(new_poses[-1][0])
             particles_weights.append(new_poses[-1][1])
 
+        # derive the variance for random particle generation based on the updated weights for all the particles
         sum_of_weights = sum(particles_weights)
         average_weight = sum_of_weights / len(particles_weights)
         variance = (1 / (average_weight - 0.8))
 
+        # normalise the particle weights
         particles_weights = [w / sum_of_weights for w in particles_weights]
-        particles_kept = []  # This is the S
+        particles_kept = []
         current_cum_weight = particles_weights[0]
         cum_weights = [current_cum_weight]
 
-        m = self.pose_array_size
-        for i in range(1, m):
+        # calculate the cumulative weights for all particles
+        for i in range(1, self.pose_array_size):
             cum_weights.append(cum_weights[i - 1] + particles_weights[i])
 
-        tick_size = 1 / m
+        # calculate the increment size and initial threshold
+        tick_size = 1 / self.pose_array_size
         current_threshold = rn.uniform(0, tick_size)
 
         # Safety in case it picks 0, shouldn't really enter this
         while current_threshold == 0:
             current_threshold = rn.uniform(0, tick_size)
 
+        # remove particles which don't have a high enough cumulative weight and replace them with variations of the
+        # previous particle that did have a high enough cumulative weight
         i = 0
-        for j in range(m):
+        for j in range(self.pose_array_size):
             while current_threshold > cum_weights[i]:
                 i += 1
 
             particles_kept.append(self.generate_pose(pose=initial_particles[i], variance=variance))
             current_threshold += tick_size
 
+        # update the particle cloud to have the new particles
         self._update_poses(particles_kept)
 
     def estimate_pose(self):
